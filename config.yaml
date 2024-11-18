@@ -1,0 +1,35 @@
+# config.yaml
+
+# General settings
+check_my_papers: true  # Set to false to skip checking your own papers
+
+# Paths
+my_abstracts_dir: 'data/abstracts'
+arxiv_abstracts_dir: 'data/arxiv_papers'
+processed_data_dir: 'data/processed'
+embeddings_dir: 'models'
+similarity_data_path: 'models/similarity_matrix.pkl'
+
+# arXiv fetch settings
+categories:
+  - 'cond-mat.dis-nn'
+  - 'cond-mat.mes-hall'
+  - 'cond-mat.mtrl-sci'
+  - 'cond-mat.other'
+  - 'cond-mat.quant-gas'
+  - 'cond-mat.soft'
+  - 'cond-mat.stat-mech'
+  - 'cond-mat.str-el'
+  - 'cond-mat.supr-con'
+  - 'math-ph'
+  - 'quant-ph'
+days: 1  # Number of days before the most recent arXiv paper
+
+# Embedding model
+embedding_model: 'all-MiniLM-L6-v2'
+
+
+# Recommendations
+top_n: 10  # Number of top recommendations to display
+similarity_threshold: 0.0  # Minimum similarity score to consider
+recommendations_output_base: 'recommendations'  # Base name for the recommendations file

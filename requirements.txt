@@ -1,0 +1,7 @@
+arxiv
+numpy
+scikit-learn
+sentence-transformers
+nltk
+tqdm
+pyyaml

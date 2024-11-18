@@ -2,24 +2,43 @@ import arxiv
 import os
 from tqdm import tqdm
 from datetime import datetime, timedelta, timezone
+import argparse
 
-def fetch_recent_papers(categories, days=1):
+def fetch_most_recent_paper_date(categories):
     # Construct the search query
     category_query = ' OR '.join([f'cat:{cat}' for cat in categories])
     search_query = f'({category_query})'
+    # Create a Client instance
+    client = arxiv.Client(page_size=1, delay_seconds=3)
+    # Create a Search instance to fetch only the most recent paper
+    search = arxiv.Search(
+        query=search_query,
+        max_results=1,
+        sort_by=arxiv.SortCriterion.SubmittedDate,
+        sort_order=arxiv.SortOrder.Descending,
+    )
+    # Get the most recent paper
+    results = list(client.results(search))
+    if results:
+        most_recent_paper = results[0]
+        if most_recent_paper.published.tzinfo is None:
+            end_date = most_recent_paper.published.replace(tzinfo=timezone.utc)
+        else:
+            end_date = most_recent_paper.published
+        return end_date
+    else:
+        return None
 
-    # Calculate date range using timezone-aware datetime objects
-    end_date = datetime.now(timezone.utc)
-    start_date = end_date - timedelta(days=days)
-
-    # Set max_results to a high number to cover all expected papers
-    max_results = 200  # Adjust as needed
-
+def fetch_papers_in_date_range(categories, start_date, end_date):
+    # Construct the search query
+    category_query = ' OR '.join([f'cat:{cat}' for cat in categories])
+    search_query = f'({category_query})'
+    # Initialize variables
+    all_results = []
+    max_results = 1000  # Adjust as needed
     print(f"Fetching papers from {start_date.date()} to {end_date.date()} in categories: {categories}")
-
     # Create a Client instance
     client = arxiv.Client(page_size=100, delay_seconds=3)
-
     # Create a Search instance
     search = arxiv.Search(
         query=search_query,
@@ -27,9 +46,6 @@ def fetch_recent_papers(categories, days=1):
         sort_by=arxiv.SortCriterion.SubmittedDate,
         sort_order=arxiv.SortOrder.Descending,
     )
-
-    all_results = []
-
     # Iterate over results using the Client
     for result in client.results(search):
         # Ensure result.published is timezone-aware
@@ -37,14 +53,12 @@ def fetch_recent_papers(categories, days=1):
             result_published = result.published.replace(tzinfo=timezone.utc)
         else:
             result_published = result.published
-        
-        print(f"Result published date: {result_published}, Start date: {start_date}")
-
-        # Stop if paper is older than start_date
-        if result_published < start_date:
+        # Only include papers within the date range
+        if start_date <= result_published <= end_date:
+            all_results.append(result)
+        elif result_published < start_date:
+            # Since results are sorted in descending order, we can break early
             break
-        all_results.append(result)
-
     print(f"Total papers fetched: {len(all_results)}")
     return all_results
 
@@ -70,11 +84,40 @@ def save_papers(papers, output_dir):
     print(f"Saved {len(papers)} papers to {output_dir}")
 
 if __name__ == '__main__':
-    # Define search parameters
-    categories = ['cond-mat', 'math-ph', 'quant-ph']
-    days = 4  # Number of days to look back
-    output_dir = 'data/arxiv_papers'
+    parser = argparse.ArgumentParser(description='Fetch recent arXiv papers.')
+    parser.add_argument('--categories', nargs='+', default=[
+        'cond-mat.dis-nn',
+        'cond-mat.mes-hall',
+        'cond-mat.mtrl-sci',
+        'cond-mat.other',
+        'cond-mat.quant-gas',
+        'cond-mat.soft',
+        'cond-mat.stat-mech',
+        'cond-mat.str-el',
+        'cond-mat.supr-con',
+        'math-ph',
+        'quant-ph'
+    ], help='List of arXiv categories to search.')
+    parser.add_argument('--days', type=int, default=1, help='Number of days before the date of the most recent article.')
+    parser.add_argument('--output_dir', type=str, default='data/arxiv_papers', help='Directory to save fetched papers.')
 
-    # Fetch and save papers
-    papers = fetch_recent_papers(categories, days)
-    save_papers(papers, output_dir)
+    args = parser.parse_args()
+
+    # Fetch the most recent paper date
+    most_recent_date = fetch_most_recent_paper_date(args.categories)
+    if most_recent_date is None:
+        # If no papers found, use current date
+        end_date = datetime.now(timezone.utc)
+        print("Warning: Could not find any recent papers. Using current date as end_date.")
+    else:
+        end_date = most_recent_date
+        print(f"Most recent paper date: {end_date.date()}")
+
+    # Calculate start date
+    start_date = end_date - timedelta(days=args.days)
+
+    # Fetch papers in date range
+    papers = fetch_papers_in_date_range(args.categories, start_date, end_date)
+
+    # Save fetched papers
+    save_papers(papers, args.output_dir)

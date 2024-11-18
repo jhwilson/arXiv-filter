@@ -11,6 +11,8 @@ def download_nltk_resource(resource_name):
     try:
         nltk.data.find(resource_name)
     except LookupError:
+        # Extract the word after the last slash
+        resource_to_download = resource_name.split('/')[-1]
         nltk.download(resource_name)
 
 # Download necessary NLTK resources
@@ -97,29 +99,59 @@ def preprocess_dataset(input_dir, output_dir, dataset_name):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Preprocess datasets.')
-    parser.add_argument('--dataset', type=str, choices=['my_abstracts', 'arxiv_papers', 'both'], default='both',
-                        help='Dataset to preprocess: my_abstracts, arxiv_papers, or both.')
+    parser = argparse.ArgumentParser(description='Preprocess abstracts.')
+    parser.add_argument('--dataset', type=str, choices=['my_abstracts', 'arxiv_papers'], default='my_abstracts', help='Dataset to preprocess.')
     args = parser.parse_args()
 
-    if args.dataset in ['my_abstracts', 'both']:
-        # Paths for your abstracts
-        input_dir_my = 'data/abstracts'
-        output_dir_my = 'data/processed/my_abstracts'
+    # Use args.dataset to set input and output directories
+    if args.dataset == 'my_abstracts':
+        input_dir = 'data/abstracts'
+        output_dir = 'data/processed'
+        dataset_name = 'your abstracts'
+    elif args.dataset == 'arxiv_papers':
+        input_dir = 'data/arxiv_papers'
+        output_dir = 'data/processed'
+        dataset_name = 'arXiv abstracts'
 
-        # Preprocess your abstracts
-        abstracts_my, filenames_my = preprocess_dataset(input_dir_my, output_dir_my, 'your abstracts')
-        with open('data/processed/my_abstracts.pkl', 'wb') as f:
-            pickle.dump({'abstracts': abstracts_my, 'filenames': filenames_my}, f)
-        print('Preprocessed your abstracts.')
+    # Preprocess the dataset
+    abstracts, filenames = preprocess_dataset(input_dir, output_dir, dataset_name)
 
-    if args.dataset in ['arxiv_papers', 'both']:
-        # Paths for arXiv papers
-        input_dir_arxiv = 'data/arxiv_papers'
-        output_dir_arxiv = 'data/processed/arxiv_papers'
+    # Construct the output file path correctly
+    output_file = os.path.join(output_dir, f'{args.dataset}.pkl')
 
-        # Preprocess arXiv papers
-        abstracts_arxiv, filenames_arxiv = preprocess_dataset(input_dir_arxiv, output_dir_arxiv, 'arXiv papers')
-        with open('data/processed/arxiv_abstracts.pkl', 'wb') as f:
-            pickle.dump({'abstracts': abstracts_arxiv, 'filenames': filenames_arxiv}, f)
-        print('Preprocessed arXiv papers.')
+    # Save the preprocessed data
+    with open(output_file, 'wb') as f:
+        pickle.dump({'abstracts': abstracts, 'filenames': filenames}, f)
+    print(f'Preprocessed abstracts saved to {output_file}.')
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser(description='Preprocess abstracts.')
+#     parser.add_argument('--dataset', type=str, choices=['my_abstracts', 'arxiv_papers'], default='my_abstracts', help='Dataset to preprocess.')
+#     args = parser.parse_args()
+
+#     # Use args.dataset to set input and output directories
+#     if args.dataset == 'my_abstracts':
+#         input_dir = 'data/abstracts'
+#         output_dir = 'data/processed'
+#         dataset_name = 'your abstracts'
+#     elif args.dataset == 'arxiv_papers':
+#         input_dir = 'data/arxiv_papers'
+#         output_dir = 'data/processed'
+#         dataset_name = 'arXiv abstracts'
+
+#     abstracts, filenames = preprocess_dataset(input_dir, output_dir, dataset_name)
+#     output_file = os.path.join(output_dir, args.dataset, '.pkl')
+
+#     with open(output_file, 'wb') as f:
+#         pickle.dump({'abstracts': abstracts, 'filenames': filenames}, f)
+#     print('Preprocessed abstracts.')
+
+    # if args.dataset in ['arxiv_papers', 'both']:
+    #     # Paths for arXiv papers
+    #     input_dir_arxiv = 'data/arxiv_papers'
+    #     output_dir_arxiv = 'data/processed/arxiv_papers'
+
+    #     # Preprocess arXiv papers
+    #     abstracts_arxiv, filenames_arxiv = preprocess_dataset(input_dir_arxiv, output_dir_arxiv, 'arXiv papers')
+    #     with open('data/processed/arxiv_abstracts.pkl', 'wb') as f:
+    #         pickle.dump({'abstracts': abstracts_arxiv, 'filenames': filenames_arxiv}, f)
+    #     print('Preprocessed arXiv papers.')
