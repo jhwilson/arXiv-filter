@@ -12,6 +12,7 @@ This project is a pipeline that fetches recent papers from arXiv in specified ca
 - [Scripts Description](#scripts-description)
 - [Dependencies](#dependencies)
 - [Troubleshooting](#troubleshooting)
+- [Outlook](#outlook)
 - [License](#license)
 
 ## Overview
@@ -192,6 +193,11 @@ Ensure your system’s date and time settings are correct to avoid issues with f
 - For large datasets, you may encounter memory issues.
 - Consider increasing your system’s memory or modifying the scripts to process data in smaller batches.
 
-### License
+## Outlook
+
+- [ ] Add in a `yaml` for arXiv `author_id`
+- [ ] Use [SPECTER](https://github.com/UKPLab/sentence-transformers/blob/master/examples/applications/semantic-search/semantic_search_publications.py) to try and relate abstracts better.
+
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
