@@ -35,10 +35,10 @@ def fetch_papers_in_date_range(categories, start_date, end_date):
     search_query = f'({category_query})'
     # Initialize variables
     all_results = []
-    max_results = 1000  # Adjust as needed
+    max_results = 300  # Adjust as needed
     print(f"Fetching papers from {start_date.date()} to {end_date.date()} in categories: {categories}")
     # Create a Client instance
-    client = arxiv.Client(page_size=100, delay_seconds=3)
+    client = arxiv.Client(page_size=300, delay_seconds=3)
     # Create a Search instance
     search = arxiv.Search(
         query=search_query,

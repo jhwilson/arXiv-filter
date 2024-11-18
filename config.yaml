@@ -26,10 +26,9 @@ categories:
 days: 1  # Number of days before the most recent arXiv paper
 
 # Embedding model
-embedding_model: 'all-MiniLM-L6-v2'
-
+embedding_model: 'allenai-specter'
 
 # Recommendations
-top_n: 10  # Number of top recommendations to display
+top_n: 20  # Number of top recommendations to display
 similarity_threshold: 0.0  # Minimum similarity score to consider
 recommendations_output_base: 'recommendations'  # Base name for the recommendations file

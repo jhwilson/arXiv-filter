@@ -36,6 +36,9 @@ if __name__ == '__main__':
     embeddings_arxiv, filenames_arxiv = load_embeddings(embeddings_arxiv_path)
     embeddings_my, filenames_my = load_embeddings(embeddings_my_path)
 
+    if embeddings_arxiv.shape[1] != embeddings_my.shape[1]:
+        print("Embedding dimensions do not match!")
+
     # Compute similarity matrix
     print("Computing similarity matrix...")
     similarity_matrix = compute_similarity(embeddings_arxiv, embeddings_my)
