@@ -49,8 +49,8 @@ The pipeline automates the process of staying updated with the latest research r
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/your-repo-name.git
-cd your-repo-name
+git clone https://github.com/jhwilson/arXiv-filter.git
+cd arXiv-filter
 ```
 
 ### 2. Set Up a Virtual Environment (Optional but Recommended)
