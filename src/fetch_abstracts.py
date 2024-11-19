@@ -60,11 +60,11 @@ if __name__ == "__main__":
     # Load configuration from YAML file
     config = load_config(args.config_file)
 
-    # Override config with argparse arguments if provided
+    # Resolve values with precedence: command-line > YAML > hardcoded defaults
     author_id = args.author_id or config.get('default_author_id', 'wilson_j_3')
     abstracts_dir = args.abstracts_dir or config.get('my_abstracts_dir', 'data/abstracts')
 
     # Fetch papers and save abstracts
-    entries = fetch_papers_from_rss(args.author_id)
-    print(f"Found {len(entries)} papers by author ID {args.author_id}.")
-    save_abstracts_from_rss(entries, args.abstracts_dir)
+    entries = fetch_papers_from_rss(author_id)
+    print(f"Found {len(entries)} papers by author ID {author_id}.")
+    save_abstracts_from_rss(entries, abstracts_dir)
