@@ -1,5 +1,8 @@
 # config.yaml
 
+# Author ID for arXiv
+default_author_id: 'wilson_j_3'
+
 # General settings
 check_my_papers: true  # Set to false to skip checking your own papers
 

@@ -1,5 +1,16 @@
 import feedparser
 import os
+import argparse
+import yaml
+
+def load_config(config_file):
+    """Load configuration from a YAML file."""
+    if os.path.exists(config_file):
+        with open(config_file, 'r') as file:
+            return yaml.safe_load(file)
+    else:
+        print(f"Configuration file {config_file} not found. Using defaults.")
+        return {}
 
 def fetch_papers_from_rss(author_id):
     feed_url = f"https://arxiv.org/a/{author_id}.atom2"
@@ -26,13 +37,34 @@ def save_abstracts_from_rss(entries, abstracts_dir):
             print(f"Abstract already exists: {filepath}")
 
 if __name__ == "__main__":
-    # Your arXiv author ID
-    author_id = "wilson_j_3"
+    parser = argparse.ArgumentParser(description="Fetch and save abstracts from arXiv RSS feed")
+    parser.add_argument(
+        "--config_file",
+        type=str,
+        default="config.yaml",
+        help="Path to the YAML configuration file (default: config.yaml)"
+    )
+    parser.add_argument(
+        "--author_id",
+        type=str,
+        help="The arXiv author ID (e.g., wilson_j_3)"
+    )
+    parser.add_argument(
+        "--abstracts_dir",
+        type=str,
+        help="Directory to save abstracts"
+    )
 
-    # Directory to store abstracts
-    abstracts_dir = "data/abstracts"
+    args = parser.parse_args()
+
+    # Load configuration from YAML file
+    config = load_config(args.config_file)
+
+    # Override config with argparse arguments if provided
+    author_id = args.author_id or config.get('default_author_id', 'wilson_j_3')
+    abstracts_dir = args.abstracts_dir or config.get('my_abstracts_dir', 'data/abstracts')
 
     # Fetch papers and save abstracts
-    entries = fetch_papers_from_rss(author_id)
-    print(f"Found {len(entries)} papers by author ID {author_id}.")
-    save_abstracts_from_rss(entries, abstracts_dir)
+    entries = fetch_papers_from_rss(args.author_id)
+    print(f"Found {len(entries)} papers by author ID {args.author_id}.")
+    save_abstracts_from_rss(entries, args.abstracts_dir)

@@ -12,7 +12,6 @@ This project is a pipeline that fetches recent papers from arXiv in specified ca
 - [Scripts Description](#scripts-description)
 - [Dependencies](#dependencies)
 - [Troubleshooting](#troubleshooting)
-- [Outlook](#outlook)
 - [License](#license)
 
 ## Overview
@@ -69,6 +68,9 @@ Customize the pipeline by editing the config.yaml file:
 ```yaml
 # config.yaml
 
+# Author ID for arXiv
+default_author_id: 'wilson_j_3'
+
 # General settings
 check_my_papers: true  # Set to false to skip checking your own papers
 
@@ -94,7 +96,7 @@ categories:
 days: 1  # Number of days before the most recent arXiv paper
 
 # Embedding model
-embedding_model: 'all-MiniLM-L6-v2'
+embedding_model: 'allenai-specter'
 
 # Recommendations
 top_n: 10  # Number of top recommendations to display
@@ -120,6 +122,24 @@ Abstract:
 Your abstract text goes here.
 Date: YYYY-MM-DD
 ```
+
+### **Optional**: Auto-generate abstracts
+
+```bash
+python src/fetch_abstracts.py
+```
+
+1. YAML Configuration
+    - By default, the script reads settings from `config.yaml` file. This should specify the author's arXiv ID and the directory where abstracts will be saved. 
+    - Example: `default_author_id` and `abstracts_dir: data/abstracts`)
+2. Command-line overrides
+   - You can override the YAML settings by providing arguments via the command line:
+    - --author_id: Specify the arXiv author ID (e.g., wilson_j_3).
+	- --abstracts_dir: Set the directory where abstracts should be saved.
+	- --config_file: Specify an alternative YAML configuration file. 
+3. Fetching and Saving:
+   - The script fetches the RSS feed for the given author ID, parses the abstracts, and saves them as .txt files in the specified directory. Each file includes the paper’s title, authors, abstract, URL, and publication date.
+
 
 ### 2. Run the Pipeline
 
@@ -192,11 +212,6 @@ Ensure your system’s date and time settings are correct to avoid issues with f
 
 - For large datasets, you may encounter memory issues.
 - Consider increasing your system’s memory or modifying the scripts to process data in smaller batches.
-
-## Outlook
-
-- [ ] Add in a `yaml` for arXiv `author_id`
-- [ ] Use [SPECTER](https://github.com/UKPLab/sentence-transformers/blob/master/examples/applications/semantic-search/semantic_search_publications.py) to try and relate abstracts better.
 
 ## License
 
