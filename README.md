@@ -4,6 +4,7 @@ This project is a pipeline that fetches recent papers from arXiv in specified ca
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
 - [Overview](#overview)
 - [Features](#features)
 - [Installation](#installation)
@@ -13,6 +14,17 @@ This project is a pipeline that fetches recent papers from arXiv in specified ca
 - [Dependencies](#dependencies)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
+
+## Quick Start
+
+After following the installation section and modifying `config.yaml` (the `default_author_id` and `categories` are the most personalized elements), you can run these from the top directory
+
+```bash
+python src/fetch_abstracts.py # Only if you configured default_author_id in config.yaml
+python src/run_pipeline.py
+```
+
+Then use your favorite markdown viewer to inspect the new `recommendations_YYYY-MM-DD.md` file created.
 
 ## Overview
 
