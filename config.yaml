@@ -29,9 +29,16 @@ categories:
 days: 1  # Number of days before the most recent arXiv paper
 
 # Embedding model
-embedding_model: 'allenai-specter'
+embedding_model: 'allenai/specter2'
+local_model_dir: ''  # Optional: set to a local path to avoid network downloads
+
+# SPECTER2 adapters mode (recommended): base + proximity adapter
+specter2_use_adapters: true
+local_specter2_base_dir: 'models/specter2_base'      # e.g., 'models/specter2_base'
+local_specter2_adapter_dir: 'models/specter2_adapter'   # e.g., 'models/specter2_adapter'
 
 # Recommendations
 top_n: 20  # Number of top recommendations to display
 similarity_threshold: 0.0  # Minimum similarity score to consider
 recommendations_output_base: 'recommendations'  # Base name for the recommendations file
+recommendations_dir: 'recommendations'  # Directory to save recommendation files

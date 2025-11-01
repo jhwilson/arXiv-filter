@@ -1,7 +1,6 @@
 import os
 import pickle
 import argparse
-from tqdm import tqdm
 
 def load_papers(input_dir):
     papers = []
@@ -42,25 +41,33 @@ def extract_multiline_field(content, start_field, end_field):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Preprocess abstracts.')
     parser.add_argument('--dataset', type=str, choices=['my_abstracts', 'arxiv_papers'], default='my_abstracts', help='Dataset to preprocess.')
+    parser.add_argument('--input_dir', type=str, default='', help='Optional input directory to override dataset location.')
+    parser.add_argument('--output_pickle', type=str, default='', help='Optional full path to save the output pickle.')
     args = parser.parse_args()
 
-    # Use args.dataset to set input and output directories
-    if args.dataset == 'my_abstracts':
-        input_dir = 'data/abstracts'
-        output_dir = 'data/processed'
-        dataset_name = 'your abstracts'
-    elif args.dataset == 'arxiv_papers':
-        input_dir = 'data/arxiv_papers'
-        output_dir = 'data/processed'
-        dataset_name = 'arXiv abstracts'
+    # Determine input and output
+    if args.input_dir:
+        input_dir = args.input_dir
+        output_file = args.output_pickle or os.path.join('data/processed', f'{args.dataset}.pkl')
+        dataset_name = input_dir
+    else:
+        if args.dataset == 'my_abstracts':
+            input_dir = 'data/abstracts'
+            output_dir = 'data/processed'
+            dataset_name = 'your abstracts'
+        elif args.dataset == 'arxiv_papers':
+            input_dir = 'data/arxiv_papers'
+            output_dir = 'data/processed'
+            dataset_name = 'arXiv abstracts'
+        os.makedirs(output_dir, exist_ok=True)
+        output_file = os.path.join(output_dir, f'{args.dataset}.pkl')
 
     print(f"Preprocessing {dataset_name}...")
 
     papers, filenames = load_papers(input_dir)
 
     # Save the preprocessed data
-    os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f'{args.dataset}.pkl')
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, 'wb') as f:
         pickle.dump({'papers': papers, 'filenames': filenames}, f)
     print(f'Preprocessed {len(papers)} papers saved to {output_file}.')

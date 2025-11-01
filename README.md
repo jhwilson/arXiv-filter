@@ -24,7 +24,7 @@ python src/fetch_abstracts.py # Only if you configured default_author_id in conf
 python src/run_pipeline.py
 ```
 
-Then use your favorite markdown viewer to inspect the new `recommendations_YYYY-MM-DD.md` file created.
+Then use your favorite markdown viewer to inspect the new `recommendations/recommendations_YYYY-MM-DD.md` file created.
 
 ## Overview
 
@@ -108,7 +108,7 @@ categories:
 days: 1  # Number of days before the most recent arXiv paper
 
 # Embedding model
-embedding_model: 'allenai-specter'
+embedding_model: 'allenai/specter2'
 
 # Recommendations
 top_n: 10  # Number of top recommendations to display
@@ -157,12 +157,27 @@ python src/fetch_abstracts.py
 
 ```bash
 python src/run_pipeline.py
+### 2b. Optional: Run the UI
+
+After installing requirements:
+
+```bash
+source env/bin/activate
+streamlit run app/ui.py
+```
+
+The UI provides:
+- A sidebar listing past `recommendations_YYYY-MM-DD.md`
+- Tabs for Priority (whitelist authors) and Other recommendations
+- Buttons to reload your papers and to run the pipeline
+- A settings page to edit key values in `config.yaml`
+
 ```
 - The pipeline will process your abstracts (if updated), fetch new arXiv papers, process them, compute similarities, and generate recommendations.
 
 ### 3. View Recommendations
 
-- The recommendations will be saved in the recommendations directory with a filename like recommendations_YYYY-MM-DD.md.
+- The recommendations will be saved under `recommendations/` with a filename like `recommendations_YYYY-MM-DD.md`.
 - Open the Markdown file with a viewer or editor to see your personalized recommendations.
 
 ### 4. Command-Line Options
@@ -194,6 +209,8 @@ arxiv
 numpy
 scikit-learn
 sentence-transformers
+transformers
+torch
 nltk
 tqdm
 pyyaml

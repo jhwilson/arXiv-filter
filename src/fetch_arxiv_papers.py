@@ -35,10 +35,11 @@ def fetch_papers_in_date_range(categories, start_date, end_date):
     search_query = f'({category_query})'
     # Initialize variables
     all_results = []
-    max_results = 300  # Adjust as needed
+    max_results = 1000  # Upper bound; client handles paging
     print(f"Fetching papers from {start_date.date()} to {end_date.date()} in categories: {categories}")
     # Create a Client instance
-    client = arxiv.Client(page_size=300, delay_seconds=3)
+    # Smaller page size is more reliable with some arxiv lib versions
+    client = arxiv.Client(page_size=100, delay_seconds=3)
     # Create a Search instance
     search = arxiv.Search(
         query=search_query,
@@ -47,18 +48,22 @@ def fetch_papers_in_date_range(categories, start_date, end_date):
         sort_order=arxiv.SortOrder.Descending,
     )
     # Iterate over results using the Client
-    for result in client.results(search):
-        # Ensure result.published is timezone-aware
-        if result.published.tzinfo is None:
-            result_published = result.published.replace(tzinfo=timezone.utc)
-        else:
-            result_published = result.published
-        # Only include papers within the date range
-        if start_date <= result_published <= end_date:
-            all_results.append(result)
-        elif result_published < start_date:
-            # Since results are sorted in descending order, we can break early
-            break
+    try:
+        for result in client.results(search):
+            # Ensure result.published is timezone-aware
+            if result.published.tzinfo is None:
+                result_published = result.published.replace(tzinfo=timezone.utc)
+            else:
+                result_published = result.published
+            # Only include papers within the date range
+            if start_date <= result_published <= end_date:
+                all_results.append(result)
+            elif result_published < start_date:
+                # Since results are sorted in descending order, we can break early
+                break
+    except arxiv.UnexpectedEmptyPageError as e:
+        # Benign: happens when we page beyond available results; keep what we have
+        print(f"Warning: encountered empty page while fetching results; proceeding with {len(all_results)} items.")
     print(f"Total papers fetched: {len(all_results)}")
     return all_results
 

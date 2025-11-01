@@ -1,7 +1,7 @@
-import os
 import pickle
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+import argparse
 
 def load_embeddings(filepath):
     with open(filepath, 'rb') as f:
@@ -24,17 +24,16 @@ def save_similarity(similarity_matrix, filenames_arxiv, filenames_my, output_fil
     print(f"Similarity matrix saved to {output_filepath}")
 
 if __name__ == '__main__':
-    # Paths to embeddings
-    embeddings_arxiv_path = 'models/arxiv_abstracts_embeddings.pkl'
-    embeddings_my_path = 'models/my_abstracts_embeddings.pkl'
-
-    # Output path for similarity matrix
-    similarity_output_path = 'models/similarity_matrix.pkl'
+    parser = argparse.ArgumentParser(description='Compute similarity matrix.')
+    parser.add_argument('--embeddings_arxiv_path', type=str, default='models/arxiv_abstracts_embeddings.pkl', help='Path to arXiv embeddings pkl')
+    parser.add_argument('--embeddings_my_path', type=str, default='models/my_abstracts_embeddings.pkl', help='Path to my abstracts embeddings pkl')
+    parser.add_argument('--similarity_output_path', type=str, default='models/similarity_matrix.pkl', help='Output path for similarity pkl')
+    args = parser.parse_args()
 
     # Load embeddings
     print("Loading embeddings...")
-    embeddings_arxiv, filenames_arxiv = load_embeddings(embeddings_arxiv_path)
-    embeddings_my, filenames_my = load_embeddings(embeddings_my_path)
+    embeddings_arxiv, filenames_arxiv = load_embeddings(args.embeddings_arxiv_path)
+    embeddings_my, filenames_my = load_embeddings(args.embeddings_my_path)
 
     if embeddings_arxiv.shape[1] != embeddings_my.shape[1]:
         print("Embedding dimensions do not match!")
@@ -44,6 +43,6 @@ if __name__ == '__main__':
     similarity_matrix = compute_similarity(embeddings_arxiv, embeddings_my)
 
     # Save similarity matrix
-    save_similarity(similarity_matrix, filenames_arxiv, filenames_my, similarity_output_path)
+    save_similarity(similarity_matrix, filenames_arxiv, filenames_my, args.similarity_output_path)
 
     print("Similarity computation completed.")

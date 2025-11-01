@@ -2,6 +2,11 @@ arxiv
 numpy
 scikit-learn
 sentence-transformers
+transformers
+torch
+adapter-transformers
+streamlit
 nltk
 tqdm
 pyyaml
+watchdog
