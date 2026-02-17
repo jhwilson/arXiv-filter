@@ -61,8 +61,14 @@ if __name__ == "__main__":
     config = load_config(args.config_file)
 
     # Resolve values with precedence: command-line > YAML > hardcoded defaults
-    author_id = args.author_id or config.get('default_author_id', 'wilson_j_3')
+    author_id = (args.author_id or config.get('default_author_id', '')).strip()
     abstracts_dir = args.abstracts_dir or config.get('my_abstracts_dir', 'data/abstracts')
+
+    if not author_id:
+        raise ValueError(
+            "No arXiv author ID configured. Set `default_author_id` in config.yaml "
+            "or pass --author_id."
+        )
 
     # Fetch papers and save abstracts
     entries = fetch_papers_from_rss(author_id)

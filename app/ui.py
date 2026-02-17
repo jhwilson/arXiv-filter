@@ -48,7 +48,7 @@ def parse_recommendation_sections(md_text: str) -> Tuple[str, str]:
 
 def count_entries(md_text: str) -> int:
     # Count markdown entries as lines starting with level-3 headings
-    return sum(1 for line in md_text.splitlines() if line.strip().startswith('### '))
+    return sum(1 for line in md_text.splitlines() if line.strip().startswith('### ['))
 
 
 def parse_entry_links(md_text: str):
@@ -71,7 +71,7 @@ def split_entries(md_text: str):
     current = []
     started = False
     for line in md_text.splitlines():
-        if line.startswith('### '):
+        if line.startswith('### ['):
             if started and current:
                 entries.append('\n'.join(current).strip())
                 current = []
@@ -90,6 +90,29 @@ def split_entries(md_text: str):
     if started and current:
         entries.append('\n'.join(current).strip())
     return [e for e in entries if e]
+
+
+def parse_other_model_sections(md_text: str):
+    # Parse optional model-specific subsection headers inside "Other recommendations".
+    lines = md_text.splitlines()
+    section_titles = ['Specter2 recommendations', 'PhysBERT recommendations']
+    markers = []
+    for i, line in enumerate(lines):
+        s = line.strip()
+        for title in section_titles:
+            if s == f'### {title}':
+                markers.append((i, title))
+    if not markers:
+        return []
+
+    markers.sort(key=lambda x: x[0])
+    sections = []
+    for idx, (start, title) in enumerate(markers):
+        end = markers[idx + 1][0] if idx + 1 < len(markers) else len(lines)
+        body = '\n'.join(lines[start + 1:end]).strip()
+        if body:
+            sections.append((title, body))
+    return sections
 
 
 def parse_entry(entry_md: str):
@@ -291,6 +314,14 @@ def _format_date_label(date_str: str) -> str:
         return date_str
 
 
+def _safe_rerun() -> None:
+    # Streamlit API changed from experimental_rerun() to rerun().
+    if hasattr(st, 'rerun'):
+        st.rerun()
+    else:
+        st.experimental_rerun()
+
+
 def render_history(files) -> str:
     # Build descriptive labels and clickable list in the sidebar; return current selection path
     file_info = []
@@ -321,7 +352,7 @@ def render_history(files) -> str:
     for p, label in display_list:
         if st.button(label, key=f'sb_{label}', use_container_width=True):
             st.session_state.selected_rec_path = p
-            st.experimental_rerun()
+            _safe_rerun()
 
     return st.session_state.selected_rec_path
 
@@ -340,51 +371,45 @@ def ui_recommendations():
         md = f.read()
 
     priority_md, other_md = parse_recommendation_sections(md)
+    cfg = load_config()
+    wl = load_whitelist_authors()
+
+    def render_recommendation_block(section_md: str, key_prefix: str, download_file: str, highlight: bool = False):
+        section_links = parse_entry_links(section_md)
+        col_content, col_select = st.columns([3, 1])
+        with col_content:
+            section_entries = [parse_entry(e) for e in split_entries(section_md)]
+            for it in section_entries:
+                render_card(it, cfg, whitelist=wl if highlight else None, highlight=highlight)
+        with col_select:
+            st.subheader('Select')
+            selected = []
+            for idx, (title, url) in enumerate(section_links):
+                checked = st.checkbox(title, key=f'{key_prefix}_{selected_path}_{idx}')
+                if checked:
+                    selected.append(url)
+            if selected:
+                urls_text = '\n'.join(selected)
+                st.text_area('Links', value=urls_text, height=160, key=f'{key_prefix}_links_{selected_path}')
+                st.download_button('Download (.txt)', data=urls_text, file_name=download_file, use_container_width=True, key=f'{key_prefix}_dl_{selected_path}')
 
     tab1, tab2 = st.tabs(["Priority", "Other recommendations"])
     with tab1:
         if priority_md.strip():
-            pri_links = parse_entry_links(priority_md)
-            col_content, col_select = st.columns([3, 1])
-            with col_content:
-                cfg = load_config()
-                wl = load_whitelist_authors()
-                pri_entries = [parse_entry(e) for e in split_entries(priority_md)]
-                for it in pri_entries:
-                    render_card(it, cfg, whitelist=wl, highlight=True)
-            with col_select:
-                st.subheader('Select')
-                selected = []
-                for idx, (title, url) in enumerate(pri_links):
-                    checked = st.checkbox(title, key=f'pri_{selected_path}_{idx}')
-                    if checked:
-                        selected.append(url)
-                if selected:
-                    urls_text = '\n'.join(selected)
-                    st.text_area('Links', value=urls_text, height=160)
-                    st.download_button('Download (.txt)', data=urls_text, file_name='priority_links.txt', use_container_width=True)
+            render_recommendation_block(priority_md, 'pri', 'priority_links.txt', highlight=True)
         else:
             st.info('No priority recommendations in this result.')
     with tab2:
         if other_md.strip():
-            oth_links = parse_entry_links(other_md)
-            col_content, col_select = st.columns([3, 1])
-            with col_content:
-                cfg = load_config()
-                oth_entries = [parse_entry(e) for e in split_entries(other_md)]
-                for it in oth_entries:
-                    render_card(it, cfg)
-            with col_select:
-                st.subheader('Select')
-                selected = []
-                for idx, (title, url) in enumerate(oth_links):
-                    checked = st.checkbox(title, key=f'oth_{selected_path}_{idx}')
-                    if checked:
-                        selected.append(url)
-                if selected:
-                    urls_text = '\n'.join(selected)
-                    st.text_area('Links', value=urls_text, height=160)
-                    st.download_button('Download (.txt)', data=urls_text, file_name='other_links.txt', use_container_width=True)
+            model_sections = parse_other_model_sections(other_md)
+            if model_sections:
+                sub_tabs = st.tabs([title for title, _ in model_sections])
+                for tab_idx, ((title, section_md), sub_tab) in enumerate(zip(model_sections, sub_tabs)):
+                    with sub_tab:
+                        key_prefix = f'oth_{tab_idx}_{title.replace(" ", "_").lower()}'
+                        render_recommendation_block(section_md, key_prefix, f'{title.replace(" ", "_").lower()}_links.txt')
+            else:
+                render_recommendation_block(other_md, 'oth', 'other_links.txt')
         else:
             st.info('No other recommendations in this result.')
 
@@ -428,11 +453,28 @@ def ui_settings():
         top_n = st.number_input('Top N', min_value=1, max_value=200, step=1, value=int(cfg.get('top_n', 20)))
         sim_thresh = st.number_input('Similarity threshold', min_value=0.0, max_value=1.0, step=0.01, value=float(cfg.get('similarity_threshold', 0.0)))
 
-        embedding_model = st.text_input('Embedding model', value=str(cfg.get('embedding_model', 'allenai/specter2')))
+        model_options = [
+            ('specter2_refresh', 'SPECTER2 refresh'),
+            ('physbert', 'PhysBERT'),
+        ]
+        model_label_by_key = {k: v for k, v in model_options}
+        model_key_by_label = {v: k for k, v in model_options}
+        selected_keys = cfg.get('enabled_recommendation_models', ['specter2_refresh']) or ['specter2_refresh']
+        selected_labels_default = [model_label_by_key[k] for k in selected_keys if k in model_label_by_key]
+        selected_labels = st.multiselect(
+            'Recommendation models',
+            options=[label for _, label in model_options],
+            default=selected_labels_default or ['SPECTER2 refresh'],
+            help='Pick one model or both. If both are selected, Other recommendations are split by model.',
+        )
+
+        embedding_model = st.text_input('SPECTER2 refresh model', value=str(cfg.get('embedding_model', 'allenai/specter2_aug2023refresh')))
         specter2_use_adapters = st.checkbox('Use SPECTER2 adapters mode', value=bool(cfg.get('specter2_use_adapters', False)))
         local_model_dir = st.text_input('Local model dir (single-repo mode)', value=str(cfg.get('local_model_dir', '')))
         local_specter2_base_dir = st.text_input('Local S2 base dir', value=str(cfg.get('local_specter2_base_dir', '')))
         local_specter2_adapter_dir = st.text_input('Local S2 adapter dir', value=str(cfg.get('local_specter2_adapter_dir', '')))
+        physbert_model = st.text_input('PhysBERT model', value=str(cfg.get('physbert_model', 'thellert/accphysbert_cased')))
+        local_physbert_model_dir = st.text_input('Local PhysBERT model dir', value=str(cfg.get('local_physbert_model_dir', '')))
 
         submitted = st.form_submit_button('Save')
         if submitted:
@@ -441,11 +483,14 @@ def ui_settings():
             cfg['categories'] = [c.strip() for c in categories_text.splitlines() if c.strip()]
             cfg['top_n'] = int(top_n)
             cfg['similarity_threshold'] = float(sim_thresh)
+            cfg['enabled_recommendation_models'] = [model_key_by_label[x] for x in selected_labels] or ['specter2_refresh']
             cfg['embedding_model'] = embedding_model
             cfg['specter2_use_adapters'] = bool(specter2_use_adapters)
             cfg['local_model_dir'] = local_model_dir
             cfg['local_specter2_base_dir'] = local_specter2_base_dir
             cfg['local_specter2_adapter_dir'] = local_specter2_adapter_dir
+            cfg['physbert_model'] = physbert_model
+            cfg['local_physbert_model_dir'] = local_physbert_model_dir
             save_config(cfg)
             st.success('Settings saved.')
 
@@ -487,7 +532,12 @@ def main():
             unsafe_allow_html=True,
         )
     with st.sidebar:
-        st.image('https://static-00.iconduck.com/assets.00/arxiv-icon-512x512-cb4l3jg5.png', width=32)
+        # Prefer local icon to avoid external host failures; fallback to text
+        _icon_local = os.path.join(os.path.dirname(__file__), 'assets', 'arxiv-icon.png')
+        if os.path.exists(_icon_local):
+            st.image(_icon_local, width=32)
+        else:
+            st.markdown("<div style='font-weight:700;font-size:16px;'>arXiv</div>", unsafe_allow_html=True)
         view = st.radio('View', ['Recommendations', 'Settings'], index=0)
         if view == 'Recommendations':
             st.header('History')

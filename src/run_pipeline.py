@@ -22,6 +22,73 @@ def compute_directory_hash(directory):
                 hash_md5.update(f.read())
     return hash_md5.hexdigest()
 
+
+def list_txt_files(directory):
+    if not os.path.isdir(directory):
+        return []
+    return [f for f in os.listdir(directory) if f.endswith('.txt')]
+
+
+def get_selected_models(config):
+    selected = config.get('enabled_recommendation_models', ['specter2_refresh'])
+    if not selected:
+        selected = ['specter2_refresh']
+
+    model_specs = []
+    for key in selected:
+        if key == 'specter2_refresh':
+            model_specs.append({
+                'key': 'specter2_refresh',
+                'model_name': config.get('embedding_model', 'allenai/specter2_aug2023refresh'),
+                'local_model_dir': config.get('local_model_dir', ''),
+                'use_adapters': bool(config.get('specter2_use_adapters', False)),
+                'adapter_base_dir': config.get('local_specter2_base_dir', ''),
+                'adapter_dir': config.get('local_specter2_adapter_dir', ''),
+            })
+        elif key == 'physbert':
+            model_specs.append({
+                'key': 'physbert',
+                'model_name': config.get('physbert_model', 'thellert/accphysbert_cased'),
+                'local_model_dir': config.get('local_physbert_model_dir', ''),
+                'use_adapters': False,
+                'adapter_base_dir': '',
+                'adapter_dir': '',
+            })
+        else:
+            print(f"Unknown model key in enabled_recommendation_models: {key} (skipping)")
+
+    if not model_specs:
+        model_specs.append({
+            'key': 'specter2_refresh',
+            'model_name': config.get('embedding_model', 'allenai/specter2_aug2023refresh'),
+            'local_model_dir': config.get('local_model_dir', ''),
+            'use_adapters': bool(config.get('specter2_use_adapters', False)),
+            'adapter_base_dir': config.get('local_specter2_base_dir', ''),
+            'adapter_dir': config.get('local_specter2_adapter_dir', ''),
+        })
+    return model_specs
+
+
+def model_section_title(model_key: str) -> str:
+    if model_key == 'specter2_refresh':
+        return 'Specter2 recommendations'
+    if model_key == 'physbert':
+        return 'PhysBERT recommendations'
+    return f'{model_key} recommendations'
+
+
+def read_recommendation_body(path: str) -> str:
+    with open(path, 'r', encoding='utf-8') as f:
+        txt = f.read()
+    lines = txt.splitlines()
+    if lines and lines[0].strip().startswith('## Top Recommendations'):
+        lines = lines[1:]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+    body = '\n'.join(lines).strip()
+    return (body + '\n') if body else ''
+
+
 def main():
     parser = argparse.ArgumentParser(description='Run the full pipeline.')
     parser.add_argument('--config', type=str, default='config.yaml', help='Path to configuration file.')
@@ -44,14 +111,9 @@ def main():
     processed_data_dir = config.get('processed_data_dir', 'data/processed')
     embeddings_dir = config.get('embeddings_dir', 'models')
     similarity_data_path = config.get('similarity_data_path', 'models/similarity_matrix.pkl')
-    local_model_dir = config.get('local_model_dir', '')
-    use_adapters = config.get('specter2_use_adapters', False)
-    adapter_base_dir = config.get('local_specter2_base_dir', '')
-    adapter_dir = config.get('local_specter2_adapter_dir', '')
     recommendations_dir = config.get('recommendations_dir', 'recommendations')
-    embeddings_my_path = os.path.join(embeddings_dir, 'my_abstracts_embeddings.pkl')
-    last_model_file = os.path.join(embeddings_dir, 'last_model.txt')
-    model_fingerprint = f"{config['embedding_model']}|adapters={use_adapters}|base={adapter_base_dir}|adapter={adapter_dir}"
+    selected_models = get_selected_models(config)
+    print("Selected models:", ", ".join(m['key'] for m in selected_models))
 
     # Modify recommendations output to include the date and directory
     recommendations_base = config.get('recommendations_output_base', 'recommendations')
@@ -65,6 +127,17 @@ def main():
     # Check if my papers have updated
     my_papers_updated = False
     hash_file = os.path.join(processed_data_dir, 'my_abstracts_hash.txt')
+    if not os.path.isdir(my_abstracts_dir):
+        os.makedirs(my_abstracts_dir, exist_ok=True)
+
+    my_abstract_files = list_txt_files(my_abstracts_dir)
+    if not my_abstract_files:
+        raise FileNotFoundError(
+            f"No abstract files found in `{my_abstracts_dir}`.\n"
+            "Add one or more `.txt` abstracts (see README format), or run:\n"
+            "  python src/fetch_abstracts.py --author_id <your_arxiv_author_id>"
+        )
+
     current_hash = compute_directory_hash(my_abstracts_dir)
 
     if config.get('check_my_papers', True):
@@ -80,16 +153,28 @@ def main():
             print("No previous hash found. Processing your abstracts for the first time...")
             my_papers_updated = True
 
-        # Force (re)embedding if missing embeddings or model changed
-        if not os.path.exists(embeddings_my_path):
-            print("No existing embeddings found for your abstracts. Generating...")
-            my_papers_updated = True
-        elif os.path.exists(last_model_file):
-            with open(last_model_file, 'r') as f:
-                prev_fingerprint = f.read().strip()
-            if prev_fingerprint != model_fingerprint:
-                print("Embedding model configuration changed. Re-embedding your abstracts...")
+        # Force (re)embedding if missing embeddings or any selected model changed
+        for model_spec in selected_models:
+            key = model_spec['key']
+            embeddings_my_path = os.path.join(embeddings_dir, f'my_abstracts_embeddings_{key}.pkl')
+            last_model_file = os.path.join(embeddings_dir, f'last_model_{key}.txt')
+            model_fingerprint = (
+                f"{model_spec['model_name']}"
+                f"|adapters={model_spec['use_adapters']}"
+                f"|base={model_spec['adapter_base_dir']}"
+                f"|adapter={model_spec['adapter_dir']}"
+            )
+            if not os.path.exists(embeddings_my_path):
+                print(f"No embeddings found for model '{key}'. Generating...")
                 my_papers_updated = True
+                break
+            if os.path.exists(last_model_file):
+                with open(last_model_file, 'r') as f:
+                    prev_fingerprint = f.read().strip()
+                if prev_fingerprint != model_fingerprint:
+                    print(f"Embedding model config changed for '{key}'. Re-embedding...")
+                    my_papers_updated = True
+                    break
 
         if my_papers_updated:
             # Save the new hash
@@ -100,22 +185,36 @@ def main():
             print("Preprocessing your abstracts...")
             subprocess.run(['python', 'src/preprocess.py', '--dataset', 'my_abstracts'], check=True)
 
-            # Generate embeddings for your abstracts
-            print("Generating embeddings for your abstracts...")
-            cmd = ['python', 'src/compute_embeddings.py', '--dataset', 'my_abstracts', '--model_name', config['embedding_model']]
-            if local_model_dir:
-                cmd += ['--local_model_dir', local_model_dir]
-            if use_adapters:
-                cmd += ['--use_adapters']
-                if adapter_base_dir:
-                    cmd += ['--adapter_base_dir', adapter_base_dir]
-                if adapter_dir:
-                    cmd += ['--adapter_dir', adapter_dir]
-            subprocess.run(cmd, check=True)
+            # Generate embeddings for each selected model
+            for model_spec in selected_models:
+                key = model_spec['key']
+                print(f"Generating embeddings for your abstracts ({key})...")
+                out_path = os.path.join(embeddings_dir, f'my_abstracts_embeddings_{key}.pkl')
+                cmd = [
+                    'python', 'src/compute_embeddings.py',
+                    '--dataset', 'my_abstracts',
+                    '--model_name', model_spec['model_name'],
+                    '--embeddings_output_path', out_path,
+                ]
+                if model_spec['local_model_dir']:
+                    cmd += ['--local_model_dir', model_spec['local_model_dir']]
+                if model_spec['use_adapters']:
+                    cmd += ['--use_adapters']
+                    if model_spec['adapter_base_dir']:
+                        cmd += ['--adapter_base_dir', model_spec['adapter_base_dir']]
+                    if model_spec['adapter_dir']:
+                        cmd += ['--adapter_dir', model_spec['adapter_dir']]
+                subprocess.run(cmd, check=True)
 
-            # Record the model fingerprint to detect future changes
-            with open(last_model_file, 'w') as f:
-                f.write(model_fingerprint)
+                model_fingerprint = (
+                    f"{model_spec['model_name']}"
+                    f"|adapters={model_spec['use_adapters']}"
+                    f"|base={model_spec['adapter_base_dir']}"
+                    f"|adapter={model_spec['adapter_dir']}"
+                )
+                last_model_file = os.path.join(embeddings_dir, f'last_model_{key}.txt')
+                with open(last_model_file, 'w') as f:
+                    f.write(model_fingerprint)
     else:
         print("Skipping check for updates to your abstracts.")
 
@@ -250,61 +349,134 @@ def main():
         preproc_out = os.path.join(processed_data_dir, f'arxiv_papers_{tag}.pkl')
         subprocess.run(['python', 'src/preprocess.py', '--dataset', 'arxiv_papers', '--input_dir', arxiv_dir, '--output_pickle', preproc_out], check=True)
 
-        print(f"Generating embeddings for arXiv papers ({tag})...")
-        emb_out = os.path.join(embeddings_dir, f'arxiv_abstracts_embeddings_{tag}.pkl')
-        cmd = ['python', 'src/compute_embeddings.py', '--dataset', 'arxiv_papers', '--preprocessed_path', preproc_out, '--embeddings_output_path', emb_out, '--model_name', config['embedding_model']]
-        if local_model_dir:
-            cmd += ['--local_model_dir', local_model_dir]
-        if use_adapters:
-            cmd += ['--use_adapters']
-            if adapter_base_dir:
-                cmd += ['--adapter_base_dir', adapter_base_dir]
-            if adapter_dir:
-                cmd += ['--adapter_dir', adapter_dir]
-        subprocess.run(cmd, check=True)
+        model_outputs = {}
+        for model_spec in selected_models:
+            key = model_spec['key']
+            print(f"Generating embeddings for arXiv papers ({tag}, {key})...")
+            emb_out = os.path.join(embeddings_dir, f'arxiv_abstracts_embeddings_{tag}_{key}.pkl')
+            cmd = [
+                'python', 'src/compute_embeddings.py',
+                '--dataset', 'arxiv_papers',
+                '--preprocessed_path', preproc_out,
+                '--embeddings_output_path', emb_out,
+                '--model_name', model_spec['model_name'],
+            ]
+            if model_spec['local_model_dir']:
+                cmd += ['--local_model_dir', model_spec['local_model_dir']]
+            if model_spec['use_adapters']:
+                cmd += ['--use_adapters']
+                if model_spec['adapter_base_dir']:
+                    cmd += ['--adapter_base_dir', model_spec['adapter_base_dir']]
+                if model_spec['adapter_dir']:
+                    cmd += ['--adapter_dir', model_spec['adapter_dir']]
+            subprocess.run(cmd, check=True)
 
-        print(f"Computing similarities ({tag})...")
-        sim_out = os.path.join(embeddings_dir, f'similarity_matrix_{tag}.pkl')
-        subprocess.run(['python', 'src/compute_similarity.py', '--embeddings_arxiv_path', emb_out, '--embeddings_my_path', os.path.join(embeddings_dir, 'my_abstracts_embeddings.pkl'), '--similarity_output_path', sim_out], check=True)
+            print(f"Computing similarities ({tag}, {key})...")
+            sim_out = os.path.join(embeddings_dir, f'similarity_matrix_{tag}_{key}.pkl')
+            emb_my = os.path.join(embeddings_dir, f'my_abstracts_embeddings_{key}.pkl')
+            subprocess.run([
+                'python', 'src/compute_similarity.py',
+                '--embeddings_arxiv_path', emb_out,
+                '--embeddings_my_path', emb_my,
+                '--similarity_output_path', sim_out
+            ], check=True)
+            model_outputs[key] = {'emb': emb_out, 'sim': sim_out}
 
-        return preproc_out, emb_out, sim_out
+        return preproc_out, model_outputs
 
     # Run whitelist first, then rest
-    wl_pre, wl_emb, wl_sim = run_subset(whitelist_dir, 'whitelist') if copied_whitelist > 0 else (None, None, None)
-    rest_pre, rest_emb, rest_sim = run_subset(rest_dir, 'rest') if copied_rest > 0 else (None, None, None)
+    wl_pre, wl_outputs = run_subset(whitelist_dir, 'whitelist') if copied_whitelist > 0 else (None, None)
+    rest_pre, rest_outputs = run_subset(rest_dir, 'rest') if copied_rest > 0 else (None, None)
 
     # Compute similarities: handled per-subset above (whitelist/rest)
 
     # Generate recommendations: combine whitelist (if any) + rest
     print("Generating recommendations...")
     tmp_wl = None
-    if wl_sim:
+    if wl_outputs:
         tmp_wl = os.path.join(recommendations_dir, f"{recommendations_base}_wl_tmp.md")
-        subprocess.run(['python', 'src/recommend.py', '--top_n', str(config['top_n']), '--similarity_threshold', str(config.get('similarity_threshold', 0.0)), '--similarity_data_path', wl_sim, '--arxiv_abstracts_dir', whitelist_dir, '--output_file', tmp_wl], check=True)
+        if len(selected_models) == 1:
+            model_key = selected_models[0]['key']
+            subprocess.run([
+                'python', 'src/recommend.py',
+                '--top_n', str(config['top_n']),
+                '--similarity_threshold', str(config.get('similarity_threshold', 0.0)),
+                '--similarity_data_path', wl_outputs[model_key]['sim'],
+                '--arxiv_abstracts_dir', whitelist_dir,
+                '--output_file', tmp_wl
+            ], check=True)
+        else:
+            sim_paths = [wl_outputs[m['key']]['sim'] for m in selected_models]
+            subprocess.run([
+                'python', 'src/recommend_ensemble.py',
+                '--top_n', str(config['top_n']),
+                '--similarity_threshold', str(config.get('similarity_threshold', 0.0)),
+                '--arxiv_abstracts_dir', whitelist_dir,
+                '--output_file', tmp_wl,
+                '--similarity_data_paths',
+                *sim_paths,
+            ], check=True)
 
     tmp_rest = None
-    if rest_sim:
-        tmp_rest = os.path.join(recommendations_dir, f"{recommendations_base}_rest_tmp.md")
-        subprocess.run(['python', 'src/recommend.py', '--top_n', str(config['top_n']), '--similarity_threshold', str(config.get('similarity_threshold', 0.0)), '--similarity_data_path', rest_sim, '--arxiv_abstracts_dir', rest_dir, '--output_file', tmp_rest], check=True)
+    tmp_rest_by_model = {}
+    if rest_outputs:
+        if len(selected_models) == 1:
+            tmp_rest = os.path.join(recommendations_dir, f"{recommendations_base}_rest_tmp.md")
+            model_key = selected_models[0]['key']
+            subprocess.run([
+                'python', 'src/recommend.py',
+                '--top_n', str(config['top_n']),
+                '--similarity_threshold', str(config.get('similarity_threshold', 0.0)),
+                '--similarity_data_path', rest_outputs[model_key]['sim'],
+                '--arxiv_abstracts_dir', rest_dir,
+                '--output_file', tmp_rest
+            ], check=True)
+        else:
+            for model_spec in selected_models:
+                model_key = model_spec['key']
+                model_tmp = os.path.join(
+                    recommendations_dir,
+                    f"{recommendations_base}_rest_{model_key}_tmp.md",
+                )
+                subprocess.run([
+                    'python', 'src/recommend.py',
+                    '--top_n', str(config['top_n']),
+                    '--similarity_threshold', str(config.get('similarity_threshold', 0.0)),
+                    '--similarity_data_path', rest_outputs[model_key]['sim'],
+                    '--arxiv_abstracts_dir', rest_dir,
+                    '--output_file', model_tmp
+                ], check=True)
+                tmp_rest_by_model[model_key] = model_tmp
 
     # Merge outputs with headers
     with open(recommendations_output, 'w', encoding='utf-8') as out:
         if tmp_wl and os.path.exists(tmp_wl):
             out.write("## Priority (whitelist authors)\n\n")
-            with open(tmp_wl, 'r', encoding='utf-8') as f:
-                out.write(f.read())
+            out.write(read_recommendation_body(tmp_wl))
             out.write('\n')
         if tmp_rest and os.path.exists(tmp_rest):
             out.write("## Other recommendations\n\n")
-            with open(tmp_rest, 'r', encoding='utf-8') as f:
-                out.write(f.read())
+            out.write(read_recommendation_body(tmp_rest))
             out.write('\n')
+        elif tmp_rest_by_model:
+            out.write("## Other recommendations\n\n")
+            for model_spec in selected_models:
+                model_key = model_spec['key']
+                model_tmp = tmp_rest_by_model.get(model_key)
+                if not model_tmp or not os.path.exists(model_tmp):
+                    continue
+                out.write(f"### {model_section_title(model_key)}\n\n")
+                out.write(read_recommendation_body(model_tmp))
+                out.write('\n')
 
     # Cleanup tmp files
     if tmp_wl and os.path.exists(tmp_wl):
         os.remove(tmp_wl)
     if tmp_rest and os.path.exists(tmp_rest):
         os.remove(tmp_rest)
+    for model_tmp in tmp_rest_by_model.values():
+        if os.path.exists(model_tmp):
+            os.remove(model_tmp)
 
     print("Pipeline completed successfully.")
     print(f"Recommendations saved to {recommendations_output}")

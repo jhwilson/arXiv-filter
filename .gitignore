@@ -1,0 +1,30 @@
+# Generated artifacts (can contain sensitive/personal data)
+data/
+data_OLD/
+models/
+models_OLD/
+recommendations*/
+config/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

@@ -3,6 +3,8 @@ import pickle
 import argparse
 
 def load_papers(input_dir):
+    if not os.path.isdir(input_dir):
+        raise FileNotFoundError(f"Input directory not found: {input_dir}")
     papers = []
     filenames = []
     for filename in os.listdir(input_dir):

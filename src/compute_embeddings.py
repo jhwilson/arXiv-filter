@@ -34,8 +34,12 @@ def generate_embeddings(texts, model_name='allenai/specter2', backend='auto', ba
             def encode_with_adapters(device: str):
                 tokenizer = AutoTokenizer.from_pretrained(adapter_base_dir)
                 model = AutoAdapterModel.from_pretrained(adapter_base_dir)
-                model.load_adapter(adapter_dir, load_as="proximity")
-                model.set_active_adapters("proximity")
+                # adapters>=1.x is most reliable when adapter is activated at load time
+                loaded_name = model.load_adapter(adapter_dir, load_as="proximity", set_active=True)
+                try:
+                    model.set_active_adapters(loaded_name)
+                except Exception:
+                    model.set_active_adapters("proximity")
                 model.to(device).eval()
 
                 # Replace literal [SEP] with tokenizer.sep_token to match SPECTER2 guidance
@@ -129,21 +133,23 @@ if __name__ == '__main__':
     parser.add_argument('--adapter_dir', type=str, default='', help='Local dir for proximity adapter (e.g., models/specter2_adapter).')
     args = parser.parse_args()
 
-    # Set paths based on dataset or overrides
+    # Set paths based on dataset, with optional explicit output override.
+    default_output = (
+        'models/my_abstracts_embeddings.pkl'
+        if args.dataset == 'my_abstracts'
+        else 'models/arxiv_abstracts_embeddings.pkl'
+    )
+    embeddings_output_path = args.embeddings_output_path or default_output
+
     if args.preprocessed_path:
         preprocessed_path = args.preprocessed_path
-        embeddings_output_path = args.embeddings_output_path or (
-            'models/my_abstracts_embeddings.pkl' if args.dataset == 'my_abstracts' else 'models/arxiv_abstracts_embeddings.pkl'
-        )
         print("Generating embeddings from custom preprocessed dataset...")
     else:
         if args.dataset == 'my_abstracts':
             preprocessed_path = 'data/processed/my_abstracts.pkl'
-            embeddings_output_path = 'models/my_abstracts_embeddings.pkl'
             print("Generating embeddings for your papers...")
         elif args.dataset == 'arxiv_papers':
             preprocessed_path = 'data/processed/arxiv_papers.pkl'
-            embeddings_output_path = 'models/arxiv_abstracts_embeddings.pkl'
             print("Generating embeddings for arXiv papers...")
 
     # Resolve model id or local directory

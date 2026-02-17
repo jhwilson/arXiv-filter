@@ -1,12 +1,12 @@
 arxiv
+feedparser
 numpy
 scikit-learn
 sentence-transformers
 transformers
 torch
-adapter-transformers
+adapters
 streamlit
-nltk
 tqdm
 pyyaml
 watchdog
